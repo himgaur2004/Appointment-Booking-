@@ -1,0 +1,1385 @@
+{
+  "info": {
+    "_postman_id": "b3c9f28a-7d4e-4f3b-9e2a-1e4a7a8d5e12",
+    "name": "Appointment Booking & Reminder Service - Automated Test Suite",
+    "description": "Production-grade automated test suite with full assertion scripts on every request (status codes, JSON schemas, reminder counts, pagination structures, error codes, and business rule validations).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://mlb-hepatitis-neighbor-walls.trycloudflare.com",
+      "type": "string"
+    },
+    {
+      "key": "appointmentId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "cancelTestId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Appointment Creation & Corner Cases",
+      "description": "Validation of appointment booking across different lead-time windows and contact combinations.",
+      "item": [
+        {
+          "name": "1.1 Standard Booking (>24h out -> 24h & 2h Reminders)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response has Content-Type application/json\", function () {",
+                  "    pm.response.to.have.header(\"Content-Type\");",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\");",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Response contains valid Appointment ID and customer\", function () {",
+                  "    pm.expect(data).to.have.property(\"id\").that.is.a(\"number\");",
+                  "    pm.expect(data.customerName).to.eql(\"Eleanor Vance\");",
+                  "    pm.expect(data.status).to.eql(\"SCHEDULED\");",
+                  "    pm.expect(data.dealershipName).to.be.a(\"string\");",
+                  "    pm.collectionVariables.set(\"appointmentId\", data.id);",
+                  "});",
+                  "pm.test(\"Both 24-hour and 2-hour reminders are eagerly scheduled\", function () {",
+                  "    pm.expect(data.reminders).to.be.an(\"array\").with.lengthOf(2);",
+                  "    var types = data.reminders.map(function(r) { return r.reminderType; });",
+                  "    pm.expect(types).to.include(\"HOURS_24\");",
+                  "    pm.expect(types).to.include(\"HOURS_2\");",
+                  "    data.reminders.forEach(function(r) {",
+                  "        pm.expect(r.status).to.eql(\"PENDING\");",
+                  "        pm.expect(r.scheduledAt).to.be.a(\"string\");",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 1,\n  \"customerName\": \"Eleanor Vance\",\n  \"customerEmail\": \"eleanor.vance@example.com\",\n  \"customerPhone\": \"+1-555-0101\",\n  \"vehicleInfo\": \"2024 Honda CR-V (VIN: 7FA23G0192)\",\n  \"serviceType\": \"10,000-Mile Scheduled Maintenance\",\n  \"scheduledAt\": \"2026-09-18T10:30:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.2 Near-Term Booking (4h out -> 2h Reminder Only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Corner case: only 2h reminder created, 24h window skipped\", function () {",
+                  "    pm.expect(data.reminders).to.be.an(\"array\").with.lengthOf(1);",
+                  "    pm.expect(data.reminders[0].reminderType).to.eql(\"HOURS_2\");",
+                  "    pm.expect(data.reminders[0].status).to.eql(\"PENDING\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 2,\n  \"customerName\": \"Marcus Brody\",\n  \"customerEmail\": \"marcus.brody@example.com\",\n  \"customerPhone\": \"+1-555-0102\",\n  \"vehicleInfo\": \"2023 Tesla Model Y\",\n  \"serviceType\": \"Emergency Tire Repair\",\n  \"scheduledAt\": \"2026-09-14T20:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.3 Immediate Booking (<2h out -> 0 Reminders)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Corner case: 0 reminders scheduled since appointment is under 2h away\", function () {",
+                  "    pm.expect(data.reminders).to.be.an(\"array\").that.is.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 3,\n  \"customerName\": \"Sara Connor\",\n  \"customerEmail\": \"sara.c@example.com\",\n  \"customerPhone\": \"+1-555-0103\",\n  \"vehicleInfo\": \"2022 Ford F-150\",\n  \"serviceType\": \"Battery Jump & Replacement\",\n  \"scheduledAt\": \"2026-09-14T11:45:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.4 Contact Variation - Email Only (No Phone)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Email is present and phone is null\", function () {",
+                  "    pm.expect(data.customerEmail).to.eql(\"email.only@example.com\");",
+                  "    pm.expect(data.customerPhone).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 1,\n  \"customerName\": \"Email Preferred Customer\",\n  \"customerEmail\": \"email.only@example.com\",\n  \"customerPhone\": null,\n  \"vehicleInfo\": \"2021 BMW 330i\",\n  \"serviceType\": \"Brake Fluid Flush\",\n  \"scheduledAt\": \"2026-09-19T09:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.5 Contact Variation - Phone Only (No Email)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Phone is present and email is null\", function () {",
+                  "    pm.expect(data.customerPhone).to.eql(\"+1-555-0987\");",
+                  "    pm.expect(data.customerEmail).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 4,\n  \"customerName\": \"SMS Preferred Customer\",\n  \"customerEmail\": null,\n  \"customerPhone\": \"+1-555-0987\",\n  \"vehicleInfo\": \"2024 Toyota RAV4 Hybrid\",\n  \"serviceType\": \"Synthetic Oil Service\",\n  \"scheduledAt\": \"2026-09-19T14:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.6 Create Appointment for Cancellation Testing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Captures cancelTestId variable for lifecycle testing\", function () {",
+                  "    pm.expect(data.id).to.be.a(\"number\");",
+                  "    pm.collectionVariables.set(\"cancelTestId\", data.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 5,\n  \"customerName\": \"Cancellation Candidate\",\n  \"customerEmail\": \"cancel.candidate@example.com\",\n  \"customerPhone\": \"+1-555-0199\",\n  \"vehicleInfo\": \"2020 Jeep Wrangler\",\n  \"serviceType\": \"Differential Inspection\",\n  \"scheduledAt\": \"2026-09-20T11:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Query & Search Appointments",
+      "description": "Read operations including single lookup, full object graph, pagination, and sorting.",
+      "item": [
+        {
+          "name": "2.1 Get Appointment by ID (Full Object Graph)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Entity matches appointmentId with full relationships\", function () {",
+                  "    pm.expect(data.id).to.eql(Number(pm.collectionVariables.get(\"appointmentId\")));",
+                  "    pm.expect(data.dealershipName).to.be.a(\"string\");",
+                  "    pm.expect(data.reminders).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments/{{appointmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "{{appointmentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.2 List Appointments (Default Pagination)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Valid Spring Page response structure\", function () {",
+                  "    pm.expect(data).to.have.property(\"content\").that.is.an(\"array\");",
+                  "    pm.expect(data).to.have.property(\"totalElements\").that.is.a(\"number\");",
+                  "    pm.expect(data.totalElements).to.be.above(0);",
+                  "    pm.expect(data.size).to.eql(20);",
+                  "    pm.expect(data.number).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.3 List Appointments (Custom Page 1, Size 10)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Page number is 1 and page size is 10\", function () {",
+                  "    pm.expect(data.number).to.eql(1);",
+                  "    pm.expect(data.size).to.eql(10);",
+                  "    pm.expect(data.content.length).to.be.at.most(10);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments?page=1&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.4 List Appointments (Sorted by scheduledAt DESC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Appointments returned in descending chronological order\", function () {",
+                  "    var dates = data.content.map(function(a) { return new Date(a.scheduledAt).getTime(); });",
+                  "    for (var i = 0; i < dates.length - 1; i++) {",
+                  "        pm.expect(dates[i]).to.be.at.least(dates[i+1]);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments?page=0&size=15&sort=scheduledAt,desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "15"
+                },
+                {
+                  "key": "sort",
+                  "value": "scheduledAt,desc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.5 List Appointments (Sorted by customerName ASC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Appointments sorted alphabetically by customerName\", function () {",
+                  "    var names = data.content.map(function(a) { return a.customerName.toLowerCase(); });",
+                  "    for (var i = 0; i < names.length - 1; i++) {",
+                  "        pm.expect(names[i].localeCompare(names[i+1])).to.be.at.most(0);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments?page=0&size=15&sort=customerName,asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "15"
+                },
+                {
+                  "key": "sort",
+                  "value": "customerName,asc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.6 Get Reminders Specifically for Appointment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Reminders list has valid structure and statuses\", function () {",
+                  "    pm.expect(data).to.be.an(\"array\");",
+                  "    data.forEach(function(r) {",
+                  "        pm.expect(r).to.have.property(\"appointmentId\").that.eqls(Number(pm.collectionVariables.get(\"appointmentId\")));",
+                  "        pm.expect([\"PENDING\", \"SENT\", \"FAILED\", \"CANCELLED\"]).to.include(r.status);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments/{{appointmentId}}/reminders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "{{appointmentId}}",
+                "reminders"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Dealership Filtering",
+      "description": "Query appointments filtered across seeded dealerships 1 through 5.",
+      "item": [
+        {
+          "name": "3.1 Filter Dealership 1: Downtown Auto Service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"All results belong to Dealership 1\", function () {",
+                  "    pm.expect(data.content).to.be.an(\"array\");",
+                  "    data.content.forEach(function(a) { pm.expect(a.dealershipId).to.eql(1); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments?dealershipId=1&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "dealershipId",
+                  "value": "1"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.2 Filter Dealership 2: Westside Motors",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"All results belong to Dealership 2\", function () {",
+                  "    pm.expect(data.content).to.be.an(\"array\");",
+                  "    data.content.forEach(function(a) { pm.expect(a.dealershipId).to.eql(2); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments?dealershipId=2&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "dealershipId",
+                  "value": "2"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.3 Filter Dealership 3: Heartland Dealership",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"All results belong to Dealership 3\", function () {",
+                  "    pm.expect(data.content).to.be.an(\"array\");",
+                  "    data.content.forEach(function(a) { pm.expect(a.dealershipId).to.eql(3); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments?dealershipId=3&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "dealershipId",
+                  "value": "3"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.4 Filter Dealership 4: Bay Area Auto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"All results belong to Dealership 4\", function () {",
+                  "    pm.expect(data.content).to.be.an(\"array\");",
+                  "    data.content.forEach(function(a) { pm.expect(a.dealershipId).to.eql(4); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments?dealershipId=4&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "dealershipId",
+                  "value": "4"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.5 Filter Dealership 5: Southern Comfort Cars",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"All results belong to Dealership 5\", function () {",
+                  "    pm.expect(data.content).to.be.an(\"array\");",
+                  "    data.content.forEach(function(a) { pm.expect(a.dealershipId).to.eql(5); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments?dealershipId=5&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "dealershipId",
+                  "value": "5"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Lifecycle & Cancellation",
+      "description": "Cancellation workflows and cascading reminder status updates.",
+      "item": [
+        {
+          "name": "4.1 Cancel Appointment (Cascades Cancellation to Reminders)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Appointment status changed to CANCELLED\", function () {",
+                  "    pm.expect(data.status).to.eql(\"CANCELLED\");",
+                  "});",
+                  "pm.test(\"All associated pending reminders changed to CANCELLED\", function () {",
+                  "    data.reminders.forEach(function(r) {",
+                  "        pm.expect(r.status).to.eql(\"CANCELLED\");",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments/{{cancelTestId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "{{cancelTestId}}",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.2 Verify Reminders Are CANCELLED After Appointment Cancellation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Confirmed: All reminders for cancelled appointment have status CANCELLED\", function () {",
+                  "    pm.expect(data.length).to.be.at.least(1);",
+                  "    data.forEach(function(r) {",
+                  "        pm.expect(r.status).to.eql(\"CANCELLED\");",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments/{{cancelTestId}}/reminders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "{{cancelTestId}}",
+                "reminders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.3 Double Cancellation Check (Re-cancelling returns 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Error message indicates appointment already cancelled\", function () {",
+                  "    pm.expect(data.message.toLowerCase()).to.include(\"already cancelled\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments/{{cancelTestId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "{{cancelTestId}}",
+                "cancel"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Validation & Error Handling (Negative Tests)",
+      "description": "Tests validation constraints, business rules, and structured error responses.",
+      "item": [
+        {
+          "name": "5.1 Error: Missing Both Email and Phone (HTTP 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Error message specifies missing contact method\", function () {",
+                  "    pm.expect(data.status).to.eql(400);",
+                  "    pm.expect(data.message).to.include(\"contact method\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 1,\n  \"customerName\": \"No Contact Customer\",\n  \"customerEmail\": null,\n  \"customerPhone\": null,\n  \"vehicleInfo\": \"2021 Ford F-150\",\n  \"serviceType\": \"Brake Check\",\n  \"scheduledAt\": \"2026-09-18T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.2 Error: Scheduled Time in the Past (HTTP 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Error message specifies scheduled time must be in future\", function () {",
+                  "    pm.expect(data.message).to.include(\"future\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 1,\n  \"customerName\": \"Time Traveler\",\n  \"customerEmail\": \"past@example.com\",\n  \"customerPhone\": \"+1-555-0000\",\n  \"vehicleInfo\": \"DeLorean DMC-12\",\n  \"serviceType\": \"Flux Capacitor Tuneup\",\n  \"scheduledAt\": \"2020-01-01T12:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.3 Error: Blank Customer Name (HTTP 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Validation failure reports customerName\", function () {",
+                  "    pm.expect(data.message).to.include(\"customerName\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 1,\n  \"customerName\": \"\",\n  \"customerEmail\": \"valid@example.com\",\n  \"customerPhone\": \"+1-555-1111\",\n  \"vehicleInfo\": \"2022 Honda Civic\",\n  \"serviceType\": \"Oil Change\",\n  \"scheduledAt\": \"2026-09-19T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.4 Error: Blank Service Type (HTTP 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Validation failure reports serviceType\", function () {",
+                  "    pm.expect(data.message).to.include(\"serviceType\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 1,\n  \"customerName\": \"Valid Customer\",\n  \"customerEmail\": \"valid@example.com\",\n  \"customerPhone\": \"+1-555-1111\",\n  \"vehicleInfo\": \"2022 Honda Civic\",\n  \"serviceType\": \"\",\n  \"scheduledAt\": \"2026-09-19T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.5 Error: Non-Existent Dealership ID (HTTP 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Error specifies Dealership not found\", function () {",
+                  "    pm.expect(data.status).to.eql(404);",
+                  "    pm.expect(data.message).to.include(\"Dealership not found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 99999,\n  \"customerName\": \"Valid Customer\",\n  \"customerEmail\": \"valid@example.com\",\n  \"customerPhone\": \"+1-555-1111\",\n  \"vehicleInfo\": \"2022 Honda Civic\",\n  \"serviceType\": \"Tire Rotation\",\n  \"scheduledAt\": \"2026-09-19T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.6 Error: Non-Existent Appointment ID (HTTP 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Error specifies Appointment not found\", function () {",
+                  "    pm.expect(data.status).to.eql(404);",
+                  "    pm.expect(data.message).to.include(\"Appointment not found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments/9999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "9999999"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Diverse Vehicle Types & Real-World Scenarios",
+      "description": "Pre-filled appointment samples across EV, Hybrid, Heavy Duty Trucks, and Luxury vehicles.",
+      "item": [
+        {
+          "name": "6.1 Electric Vehicle - High Voltage Battery Inspection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Vehicle info and service type are correctly stored\", function () {",
+                  "    pm.expect(data.vehicleInfo).to.eql(\"2025 Porsche Taycan 4S\");",
+                  "    pm.expect(data.serviceType).to.eql(\"High-Voltage Battery Diagnostics & Software Update\");",
+                  "    pm.expect(data.reminders.length).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 4,\n  \"customerName\": \"Priya Sharma\",\n  \"customerEmail\": \"priya.sharma@example.com\",\n  \"customerPhone\": \"+1-555-0301\",\n  \"vehicleInfo\": \"2025 Porsche Taycan 4S\",\n  \"serviceType\": \"High-Voltage Battery Diagnostics & Software Update\",\n  \"scheduledAt\": \"2026-09-22T13:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.2 Commercial Fleet Truck - Heavy Duty Brake Overhaul",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Vehicle info and service type are correctly stored\", function () {",
+                  "    pm.expect(data.vehicleInfo).to.eql(\"2023 Ford Super Duty F-350 DRW\");",
+                  "    pm.expect(data.serviceType).to.eql(\"Heavy-Duty Brake Pad & Rotor Replacement\");",
+                  "    pm.expect(data.reminders.length).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 3,\n  \"customerName\": \"Apex Logistics Fleet\",\n  \"customerEmail\": \"maintenance@apexlogistics.com\",\n  \"customerPhone\": \"+1-555-0402\",\n  \"vehicleInfo\": \"2023 Ford Super Duty F-350 DRW\",\n  \"serviceType\": \"Heavy-Duty Brake Pad & Rotor Replacement\",\n  \"scheduledAt\": \"2026-09-23T08:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.3 European Luxury - Transmission Service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Vehicle info and service type are correctly stored\", function () {",
+                  "    pm.expect(data.vehicleInfo).to.eql(\"2024 Mercedes-Benz AMG C63\");",
+                  "    pm.expect(data.serviceType).to.eql(\"Dual-Clutch Transmission Flush & Adaptation\");",
+                  "    pm.expect(data.reminders.length).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dealershipId\": 2,\n  \"customerName\": \"Julian Sterling\",\n  \"customerEmail\": \"julian.sterling@example.com\",\n  \"customerPhone\": \"+1-555-0503\",\n  \"vehicleInfo\": \"2024 Mercedes-Benz AMG C63\",\n  \"serviceType\": \"Dual-Clutch Transmission Flush & Adaptation\",\n  \"scheduledAt\": \"2026-09-24T15:30:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

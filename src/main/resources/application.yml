@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: appointment-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/appointment_db?prepareThreshold=1&preparedStatementCacheQueries=512&preparedStatementCacheSizeMiB=10&reWriteBatchedInserts=true
+    username: appointment_user
+    password: appointment_pass
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 20
+      connection-timeout: 5000
+      idle-timeout: 300000
+      max-lifetime: 600000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+          batch_size: 30
+        order_inserts: true
+        order_updates: true
+        generate_statistics: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    accept-count: 100
+    max-connections: 8192
+
+# Custom reminder scheduler configuration
+reminder:
+  scheduler:
+    enabled: true
+    poll-interval-ms: 60000
+    batch-size: 100
+    max-retry-count: 3
+
+logging:
+  level:
+    com.appointment: WARN
+    org.springframework.scheduling: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
